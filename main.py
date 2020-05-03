@@ -9,6 +9,7 @@ class Album(BaseModel):
     title: str
     artist_id: int
 
+
 @app.on_event("startup")
 async def startup():
     app.db_connection = sqlite3.connect('chinook.db')
@@ -28,7 +29,7 @@ async def composers(composer_name: str = Query("")):
         (composer_name,)).fetchall()
     if titles:
         return titles
-    raise HTTPException(status_code=404, detail={"error": "Not Found"})
+    raise HTTPException(status_code=404, detail={"error": "Not found"})
 
 
 @app.get("/tracks/")
@@ -58,5 +59,10 @@ async def album(album: Album, response: Response):
     }
 
 
-#@app.post("/albums/{album_id}/")
-#async def album(album: Album, response: Response):
+@app.get("/albums/{album_id}/")
+async def get_album(album_id: int):
+    app.db_connection.row_factory = sqlite3.Row
+    album = app.db_connection.execute(
+        "SELECT * FROM albums WHERE albumid = ?",
+        (album_id,)).fetchone()
+    return album
