@@ -1,8 +1,13 @@
 import sqlite3
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, status, Response
+from pydantic import BaseModel
 
 app = FastAPI()
 
+
+class Album(BaseModel):
+    title: str
+    artist_id: int
 
 @app.on_event("startup")
 async def startup():
@@ -15,7 +20,7 @@ async def shutdown():
 
 
 @app.get("/tracks/composers/")
-async def composer(composer_name: str = Query("")):
+async def composers(composer_name: str = Query("")):
     cursor = app.db_connection.cursor()
     cursor.row_factory = lambda cursor, x: x[0]
     titles = cursor.execute(
@@ -27,7 +32,7 @@ async def composer(composer_name: str = Query("")):
 
 
 @app.get("/tracks/")
-async def single_track(page: int = Query(0), per_page: int = Query(10)):
+async def tracks(page: int = Query(0), per_page: int = Query(10)):
     app.db_connection.row_factory = sqlite3.Row
     tracks = app.db_connection.execute(
         "SELECT * FROM tracks ORDER BY trackid ASC LIMIT ? OFFSET ? ",
@@ -35,9 +40,23 @@ async def single_track(page: int = Query(0), per_page: int = Query(10)):
 
     return tracks
 
-'''app.db_connection = sqlite3.connect('chinook.db')
-cursor = app.db_connection.cursor()
-cursor.row_factory = sqlite3.Row
-titles = app.db_connection.execute("SELECT composer FROM tracks").fetchall()
-print(titles)
-app.db_connection.close()'''
+
+@app.post("/albums/")
+async def album(album: Album, response: Response):
+    cursor = app.db_connection.cursor()
+    artist = cursor.execute("SELECT artistid FROM artists WHERE artistid = ? ", (album.artist_id,)).fetchone()
+    if not artist:
+        raise HTTPException(status_code=404, detail={"error": "Artist not found"})
+
+    cursor.execute("INSERT INTO albums (title, artistid) VALUES (?, ?)", (album.title, album.artist_id))
+    app.db_connection.commit()
+    response.status_code = status.HTTP_201_CREATED
+    return {
+        "AlbumId": cursor.lastrowid,
+        "Title": album.title,
+        "ArtistId": album.artist_id
+    }
+
+
+#@app.post("/albums/{album_id}/")
+#async def album(album: Album, response: Response):
