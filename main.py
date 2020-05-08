@@ -5,21 +5,6 @@ from pydantic import BaseModel
 app = FastAPI()
 
 
-class Album(BaseModel):
-    title: str
-    artist_id: int
-
-
-class Customer(BaseModel):
-    company: str = None
-    address: str = None
-    city: str = None
-    state: str = None
-    country: str = None
-    postalcode: str = None
-    fax: str = None
-
-
 @app.on_event("startup")
 async def startup():
     app.db_connection = sqlite3.connect('chinook.db')
@@ -29,6 +14,19 @@ async def startup():
 async def shutdown():
     app.db_connection.close()
 
+
+# ***********************ZAD1********************
+
+@app.get("/tracks/")
+async def tracks(page: int = Query(0), per_page: int = Query(10)):
+    app.db_connection.row_factory = sqlite3.Row
+    tracks = app.db_connection.execute(
+        "SELECT * FROM tracks ORDER BY trackid ASC LIMIT ? OFFSET ? ",
+        (per_page, page*per_page)).fetchall()
+    return tracks
+
+
+# ***********************ZAD2********************
 
 @app.get("/tracks/composers/")
 async def composers(composer_name: str = Query("")):
@@ -42,14 +40,11 @@ async def composers(composer_name: str = Query("")):
     raise HTTPException(status_code=404, detail={"error": "Not found"})
 
 
-@app.get("/tracks/")
-async def tracks(page: int = Query(0), per_page: int = Query(10)):
-    app.db_connection.row_factory = sqlite3.Row
-    tracks = app.db_connection.execute(
-        "SELECT * FROM tracks ORDER BY trackid ASC LIMIT ? OFFSET ? ",
-        (per_page, page*per_page)).fetchall()
+# ***********************ZAD3********************
 
-    return tracks
+class Album(BaseModel):
+    title: str
+    artist_id: int
 
 
 @app.post("/albums/")
@@ -77,7 +72,18 @@ async def get_album(album_id: int):
         (album_id,)).fetchone()
     return album
 
+
 # **************************ZAD4*************************
+
+class Customer(BaseModel):
+    company: str = None
+    address: str = None
+    city: str = None
+    state: str = None
+    country: str = None
+    postalcode: str = None
+    fax: str = None
+
 
 @app.put("/customers/{customer_id}/")
 async def customer(customer_id: int, customer: Customer):
@@ -87,19 +93,26 @@ async def customer(customer_id: int, customer: Customer):
     if not db_customer:
         raise HTTPException(status_code=404, detail={"error": "Customer not found"})
 
-    update_data = customer.dict(exclude_unset=True)
+    #update_data = customer.dict(exclude_unset=True)
+    #for key, val in update_data.items():
+    #   sql_string = f"UPDATE customers SET {key} = '{val}' WHERE customerid = {customer_id}"
+    #   cursor.execute(sql_string)
+    #   app.db_connection.commit()
 
-    for key, val in update_data.items():
-        sql_string = f"UPDATE customers SET {key} = '{val}' WHERE customerid = {customer_id}"
-        cursor.execute(sql_string)
-        app.db_connection.commit()
+    cursor.execute('''
+        UPDATE customers SET 
+            Company=COALESCE(?, Company),
+            Address=COALESCE(?, Address),
+            City=COALESCE(?, City),
+            State=COALESCE(?, State), 
+            Country=COALESCE(?, Country), 
+            PostalCode=COALESCE(?, PostalCode), 
+            Fax=COALESCE(?, Fax) 
+        WHERE CustomerId=?''',
+        (customer.company, customer.address, customer.city, customer.state, customer.country, customer.postalcode,
+        customer.fax, customer_id))
+    app.db_connection.commit()
 
-    db_customer = cursor.execute("SELECT * FROM customers WHERE customerid = ? ", (customer_id,)).fetchone()
-    return db_customer
+    updated_customer = cursor.execute("SELECT * FROM customers WHERE customerid = ? ", (customer_id,)).fetchone()
+    return updated_customer
 
-
-
-#   for key, val in update_data.items():
-#      instruction = f"{key} = '{val}'"
-#        cursor.execute("UPDATE customers SET ? WHERE customerid = ?", (instruction, customer_id,))
-#       cursor.commit()
