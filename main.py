@@ -93,12 +93,6 @@ async def customer(customer_id: int, customer: Customer):
     if not db_customer:
         raise HTTPException(status_code=404, detail={"error": "Customer not found"})
 
-    #update_data = customer.dict(exclude_unset=True)
-    #for key, val in update_data.items():
-    #   sql_string = f"UPDATE customers SET {key} = '{val}' WHERE customerid = {customer_id}"
-    #   cursor.execute(sql_string)
-    #   app.db_connection.commit()
-
     cursor.execute('''
         UPDATE customers SET 
             Company=COALESCE(?, Company),
@@ -108,11 +102,26 @@ async def customer(customer_id: int, customer: Customer):
             Country=COALESCE(?, Country), 
             PostalCode=COALESCE(?, PostalCode), 
             Fax=COALESCE(?, Fax) 
-        WHERE CustomerId=?''',
-        (customer.company, customer.address, customer.city, customer.state, customer.country, customer.postalcode,
-        customer.fax, customer_id))
+        WHERE CustomerId=?''', (customer.company, customer.address, customer.city, customer.state, customer.country,
+                                customer.postalcode, customer.fax, customer_id))
     app.db_connection.commit()
 
     updated_customer = cursor.execute("SELECT * FROM customers WHERE customerid = ? ", (customer_id,)).fetchone()
     return updated_customer
 
+
+# **************************ZAD5*************************
+
+@app.get("/sales/")
+async def sales(category: str = Query("")):
+    if category != "customers":
+        raise HTTPException(status_code=404, detail={"error": "Category not found"})
+    cursor = app.db_connection.cursor()
+    cursor.row_factory = sqlite3.Row
+    sales = cursor.execute('''
+        SELECT customers.CustomerId, Email, Phone, round(SUM(invoices.Total),2) AS Sum 
+        FROM customers JOIN invoices ON invoices.CustomerId = customers.CustomerId 
+        GROUP BY customers.CustomerId 
+        ORDER BY Sum DESC, customers.CustomerId''').fetchall()
+
+    return sales
