@@ -1,7 +1,6 @@
 import sqlite3
 from fastapi import FastAPI, Query, HTTPException, status, Response
 from pydantic import BaseModel
-from fastapi.encoders import jsonable_encoder
 
 app = FastAPI()
 
@@ -12,29 +11,13 @@ class Album(BaseModel):
 
 
 class Customer(BaseModel):
-    company: str
-    address: str
-    city: str
-    state: str
-    country: str
-    postalcode: str
-    fax: str
-
-
-class CustomerResponse(BaseModel):
-    CustomerId: int = None
-    FirstName: str = None
-    LastName: str = None
-    Company: str = None
-    Address: str = None
-    City: str = None
-    State: str = None
-    Country: str = None
-    PostalCode: str = None
-    Phone: str = None
-    Fax: str = None
-    Email: str = None
-    SupportRepId: int = None
+    company: str = None
+    address: str = None
+    city: str = None
+    state: str = None
+    country: str = None
+    postalcode: str = None
+    fax: str = None
 
 
 @app.on_event("startup")
@@ -94,18 +77,29 @@ async def get_album(album_id: int):
         (album_id,)).fetchone()
     return album
 
+# **************************ZAD4*************************
 
 @app.put("/customers/{customer_id}/")
 async def customer(customer_id: int, customer: Customer):
     cursor = app.db_connection.cursor()
     cursor.row_factory = sqlite3.Row
-    db_customer = cursor.execute("SELECT * FROM customers WHERE customerid = ? ", (customer_id,)).fetchone()
+    db_customer = cursor.execute("SELECT customerid FROM customers WHERE customerid = ? ", (customer_id,)).fetchone()
     if not db_customer:
         raise HTTPException(status_code=404, detail={"error": "Customer not found"})
-    stored_item_data = db_customer
-    stored_item_model = CustomerResponse(**stored_item_data)
-    update_data = customer.dict(exclude_unset=True)
-    updated_item = stored_item_model.copy(update=update_data)
-    db_input = jsonable_encoder(updated_item)
-    return db_input
 
+    update_data = customer.dict(exclude_unset=True)
+
+    for key, val in update_data.items():
+        sql_string = f"UPDATE customers SET {key} = '{val}' WHERE customerid = {customer_id}"
+        cursor.execute(sql_string)
+        app.db_connection.commit()
+
+    db_customer = cursor.execute("SELECT * FROM customers WHERE customerid = ? ", (customer_id,)).fetchone()
+    return db_customer
+
+
+
+#   for key, val in update_data.items():
+#      instruction = f"{key} = '{val}'"
+#        cursor.execute("UPDATE customers SET ? WHERE customerid = ?", (instruction, customer_id,))
+#       cursor.commit()
