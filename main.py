@@ -110,18 +110,28 @@ async def customer(customer_id: int, customer: Customer):
     return updated_customer
 
 
-# **************************ZAD5*************************
+# **************************ZAD 5 + 6*************************
 
 @app.get("/sales/")
 async def sales(category: str = Query("")):
-    if category != "customers":
-        raise HTTPException(status_code=404, detail={"error": "Category not found"})
     cursor = app.db_connection.cursor()
     cursor.row_factory = sqlite3.Row
-    sales = cursor.execute('''
-        SELECT customers.CustomerId, Email, Phone, round(SUM(invoices.Total),2) AS Sum 
-        FROM customers JOIN invoices ON invoices.CustomerId = customers.CustomerId 
-        GROUP BY customers.CustomerId 
-        ORDER BY Sum DESC, customers.CustomerId''').fetchall()
 
-    return sales
+    if category == "customers":
+        sales = cursor.execute('''
+            SELECT customers.CustomerId, Email, Phone, round(SUM(invoices.Total),2) AS Sum 
+            FROM customers JOIN invoices ON invoices.CustomerId = customers.CustomerId 
+            GROUP BY customers.CustomerId 
+            ORDER BY Sum DESC, customers.CustomerId''').fetchall()
+        return sales
+
+    if category == "genres":
+        sales = cursor.execute('''
+            SELECT genres.Name, SUM(invoice_items.Quantity) AS Sum 
+            FROM genres JOIN tracks ON genres.GenreId = tracks.GenreId
+            JOIN invoice_items ON invoice_items.TrackId = tracks.TrackId
+            GROUP BY genres.Name 
+            ORDER BY Sum DESC, genres.Name''').fetchall()
+        return sales
+
+    raise HTTPException(status_code=404, detail={"error": "Category not found"})
